@@ -18,23 +18,28 @@
     (fn [db]
       (when-not @active
         (swap! h #(conj % @db)))
-      [:div {:class "form-group"}
-       [:label {:for "history"} "History"]
-       [:input {:type "range"
-                :class "form-control"
-                :name "history"
-                :min 0
-                :max (count @h)
-                :onChange (fn [e]
-                            (when (> (count @h) 0)
-                              (reset! active true)
-                              (->> e
-                                 (.-target)
-                                 (.-value)
-                                 (from-history db h)
-                                 )))
-                :onBlur (fn [e] (reset! active false))
-                }]])))
+      [:div {:class "wrapper"}
+       [:div {:class "form-group"}
+        [:button {:class "btn btn-default"
+                  :onClick (fn [e] (reset! h []))} "History Reset"]
+        ]
+       [:div {:class "form-group"}
+        [:label {:for "history"} "History"]
+        [:input {:type "range"
+                 :class "form-control"
+                 :name "history"
+                 :min 0
+                 :max (count @h)
+                 :onChange (fn [e]
+                             (when (> (count @h) 0)
+                               (reset! active true)
+                               (->> e
+                                  (.-target)
+                                  (.-value)
+                                  (from-history db h)
+                                  )))
+                 :onBlur (fn [e] (reset! active false))
+                 }]]])))
 
 (defn click-count-component
   [clicks]
