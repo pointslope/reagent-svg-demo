@@ -123,22 +123,21 @@
                                           (.-value))))}]])
 
 (defn select-component []
-  (fn []
-    (let [fill (r/cursor app-db [:fill])
-          colors ["black" "pink" "magenta" "gold"
-                  "orange" "purple" "brown" "red"]]
-      (do
-        (reset! fill (first colors))
-        [:div {:class "form-group"}
-         [:label {:for "Color"} "Color"]
-         [:select {:name "Color"
-                   :class "form-control"
-                   :onChange (fn [e] (->> e
-                                       (.-target)
-                                       (.-value)
-                                       (reset! fill)))}
-          (for [c colors]
-            [:option {:value c :key c} c])]]))))
+  (let [fill (r/cursor app-db [:fill])
+        colors ["black" "pink" "magenta" "gold"
+                "orange" "purple" "brown" "red"]]
+    (reset! fill (first colors))
+    (fn []
+      [:div {:class "form-group"}
+       [:label {:for "Color"} "Color"]
+       [:select {:name "Color"
+                 :class "form-control"
+                 :onChange (fn [e] (->> e
+                                     (.-target)
+                                     (.-value)
+                                     (reset! fill)))}
+        (for [c colors]
+          [:option {:value c :key c} c])]])))
 
 (defn svg-component [circle]
   [:svg {:width "720" :height "720" :id "canvas" :style {:outline "1px solid black"}}
