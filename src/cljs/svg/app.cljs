@@ -47,7 +47,10 @@
                                   (.-target)
                                   (.-value)
                                   (from-history db h))))
-                 :onBlur (fn [e] (reset! active false))
+                 :onBlur (fn [e]
+                           (do
+                             (reset! active false)
+                             (.stopPropagation e)))
                  }]]])))
 
 (defn click-count-component
