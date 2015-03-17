@@ -9,46 +9,94 @@
             [goog.events.EventType]
             [goog.math :as gmath]))
 
-(defonce app-db (atom {:x 360 :y 360 :radius 50 :fill nil :clicks 0}))
+;; Data
 
-(defonce history (atom {:states []}))
+(defonce app-db (atom {:x 360 :y 360 :radius 50 :fill "black" :clicks 0}))
+(defonce history (atom {:states [] :count 0 :current 0}))
+(defonce event-handlers (atom {}))
 
-(defn from-history
-  [db h v]
-  (let [i (js/parseInt v)
-        state (get @h i)]
-    (when state
-      (reset! db state))))
+;;; Utilities
 
-(defn history-component [db]
-  (let [h (r/cursor history [:states])
-        active (atom nil)]
+(defn fire
+  "Call all handlers for an event passing in the app-db"
+  [key data]
+  (doseq [handler (key @event-handlers)]
+    (handler app-db data))
+  {:event key :data data})
+
+(defn listen
+  "Register a function to listen for an event"
+  [key func]
+  (let [handlers (vec (get @event-handlers key))]
+    (swap! event-handlers assoc key (conj handlers func))))
+
+(defn- make-constraint
+  "Creates a function that keeps a supplied number within the set bounds"
+  [minimum maximum]
+  (fn [num]
+    (let [local-max (if (<= num maximum) num maximum)]
+      (if (<= minimum local-max) local-max minimum))))
+
+;;; Event Handlers
+
+(listen :object-moved
+        (fn [db [newX newY]]
+          (swap! db assoc :x newX :y newY)
+          (fire :state-changed @db)))
+
+(listen :color-changed
+        (fn [db color]
+          (swap! db assoc :fill color)
+          (fire :state-changed @db)))
+
+(listen :point-earned
+        (fn [db cursor]
+          (swap! cursor inc)
+          (fire :state-changed @db)))
+
+(listen :dimension-changed
+        (fn [db [cursor value]]
+          (reset! cursor value)
+          (fire :state-changed @db)))
+
+(listen :state-changed
+        (fn [db new-state]
+          (let [states  @(r/cursor history [:states])
+                counter @(r/cursor history [:count])
+                next-index (inc counter)]
+            (reset! history {:states (conj states new-state)
+                             :count next-index
+                             :current next-index}))))
+
+(listen :history-navigated
+        (fn [db index]
+          (let [states (r/cursor history [:states])
+                current (r/cursor history [:current])]
+            (when-let [chosen (get @states index)]
+              (reset! db chosen)
+              (reset! current index))
+            true)))
+
+;;; Components
+
+(defn history-component
+  [db]
+  (let [h (r/cursor db [:states])
+        state-count (r/cursor db [:count])
+        current (r/cursor db [:current])]
     (fn [db]
-      (when-not @active
-        (swap! h #(conj % @db)))
       [:div {:class "wrapper"}
        [:div {:class "form-group"}
-        [:button {:class "btn btn-default"
-                  :onClick (fn [e]
-                             (reset! h [])
-                             (.stopPropagation e))} "History Reset"]
-        ]
-       [:div {:class "form-group"}
-        [:label {:for "history"} "History"]
+        [:label {:for "history"} (str "History " @current)]
         [:input {:type "range"
                  :class "form-control"
                  :name "history"
+                 :value @current
                  :min 0
-                 :max (count @h)
-                 :onChange (fn [e]
-                             (when (> (count @h) 0)
-                               (reset! active true)
-                               (->> e
-                                  (.-target)
-                                  (.-value)
-                                  (from-history db h))))
-                 :onBlur (fn [e] (reset! active false))
-                 }]]])))
+                 :max @state-count
+                 :on-change (fn [e]
+                              (fire :history-navigated
+                                    (->> e .-target .-value js/parseInt)))}]]])))
 
 (defn click-count-component
   [clicks]
@@ -61,19 +109,7 @@
     (fn [cx cy r fill score]
       [:circle {:cx @cx :cy @cy
                 :r @r :style {:fill @fill}
-                :onClick (fn [e] (swap! score inc))}])))
-
-(defn make-constraint
-  "Creates a function that keeps a supplied number within the set bounds"
-  [minimum maximum]
-  (fn [num]
-    (let [local-max (if (<= num maximum) num maximum)]
-      (if (<= minimum local-max) local-max minimum))))
-
-(defn circle-dragged
-  "Event handler for circle drags"
-  [[newX newY]]
-  (swap! app-db assoc :x newX :y newY))
+                :on-click (fn [e] (fire :point-earned score))}])))
 
 (def draggable-circle-component
   (with-meta circle-component
@@ -100,7 +136,7 @@
                        dy (-> b .-dragger .-deltaY)
                        x (x-constraint (+ dx @(:x local-state)))
                        y (y-constraint (+ dy @(:y local-state)))]
-                   (circle-dragged [x y]))))
+                   (fire :object-moved [x y]))))
 
               ;; Drag end
               (.addEventListener drag goog.fx.Dragger.EventType/END #(.dispose drag))
@@ -108,7 +144,8 @@
               ;; Initialize
               (.startDrag drag e))))))}))
 
-(defn range-component [v min max title]
+(defn range-component
+  [v min max title]
   [:div {:class "form-group"}
    [:label {:for title} title [:small " [ " @v " ] "]]
    [:input {:type "range"
@@ -118,33 +155,34 @@
             :min min
             :max max
             :value @v
-            :onChange (fn [e] (reset! v (-> e
-                                          (.-target)
-                                          (.-value))))}]])
+            :on-change (fn [e] (fire :dimension-changed [v (-> e .-target .-value)]))}]])
 
-(defn select-component []
+(defn select-component
+  []
   (fn []
     (let [fill (r/cursor app-db [:fill])
-          colors ["black" "pink" "magenta" "gold"
-                  "orange" "purple" "brown" "red"]]
+          colors ["gray" "red" "orange" "yellow" "green" "blue"
+                  "aqua" "indigo" "purple" "brown" "black"]]
       (do
-        (reset! fill (first colors))
         [:div {:class "form-group"}
          [:label {:for "Color"} "Color"]
          [:select {:name "Color"
                    :class "form-control"
-                   :onChange (fn [e] (->> e
-                                       (.-target)
-                                       (.-value)
-                                       (reset! fill)))}
+                   :value @fill
+                   :on-change (fn [e] (fire :color-changed (->> e .-target .-value)))}
           (for [c colors]
             [:option {:value c :key c} c])]]))))
 
-(defn svg-component [circle]
-  [:svg {:width "720" :height "720" :id "canvas" :style {:outline "1px solid black"}}
+(defn svg-component
+  [circle]
+  [:svg {:width "720"
+         :height "720"
+         :id "canvas"
+         :style {:outline "1px solid black"}}
    circle])
 
-(defn app-component []
+(defn app-component
+  []
   (let [x (r/cursor app-db [:x])
         y (r/cursor app-db [:y])
         radius (r/cursor app-db [:radius])
@@ -154,7 +192,7 @@
     (fn []
       [:div {:id "wrapper"}
        [:div {:id "controls" :class "col-md-3"}
-        [history-component app-db]
+        [history-component history]
         [click-count-component clicks]
         [range-component x 0 720 "CX"]
         [range-component y 0 720 "CY"]
@@ -163,6 +201,9 @@
        [:div {:class "col-md-9"}
         [svg-component circle]]])))
 
-(defn init []
+;; Run it all
+
+(defn init
+  []
   (r/render-component [app-component]
                       (.getElementById js/document "canvas")))
