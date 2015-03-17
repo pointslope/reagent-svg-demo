@@ -21,7 +21,9 @@
       [:div {:class "wrapper"}
        [:div {:class "form-group"}
         [:button {:class "btn btn-default"
-                  :onClick (fn [e] (reset! h []))} "History Reset"]
+                  :onClick (fn [e]
+                             (reset! h [])
+                             (.stopPropagation e))} "History Reset"]
         ]
        [:div {:class "form-group"}
         [:label {:for "history"} "History"]
@@ -36,8 +38,7 @@
                                (->> e
                                   (.-target)
                                   (.-value)
-                                  (from-history db h)
-                                  )))
+                                  (from-history db h))))
                  :onBlur (fn [e] (reset! active false))
                  }]]])))
 
