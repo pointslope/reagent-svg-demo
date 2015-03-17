@@ -1,4 +1,5 @@
 (ns svg.app
+  (:require-macros [reagent.debug :refer [log prn]])
   (:require [reagent.core :as r :refer [atom]]
             [goog.string :as gstring]
             [goog.string.format]
@@ -53,10 +54,14 @@
   [clicks]
   [:h2 "Clicks: " [:small @clicks]])
 
-(defn circle-component [cx cy r fill score]
-  [:circle {:cx @cx :cy @cy
-            :r @r :style {:fill @fill}
-            :onClick (fn [e] (swap! score inc))}])
+(defn circle-component
+  [cx cy r fill score]
+  (let [local-state {:x cx :y cy}]
+    (r/set-state (r/current-component) local-state)
+    (fn [cx cy r fill score]
+      [:circle {:cx @cx :cy @cy
+                :r @r :style {:fill @fill}
+                :onClick (fn [e] (swap! score inc))}])))
 
 (defn make-constraint
   "Creates a function that keeps a supplied number within the set bounds"
@@ -64,6 +69,11 @@
   (fn [num]
     (let [local-max (if (<= num maximum) num maximum)]
       (if (<= minimum local-max) local-max minimum))))
+
+(defn circle-dragged
+  "Event handler for circle drags"
+  [[newX newY]]
+  (swap! app-db assoc :x newX :y newY))
 
 (def draggable-circle-component
   (with-meta circle-component
@@ -73,32 +83,30 @@
              canvas (-> node .-parentNode)
              x-constraint (->> canvas .-clientWidth (make-constraint 0))
              y-constraint (->> canvas .-clientHeight (make-constraint 0))]
-         
+
+         ;; get my component-local
          (goog.events/listen
           node
           goog.events.EventType/MOUSEDOWN
           (fn [e]
-            (let [drag (fx/Dragger. node)]
+            (let [drag (fx/Dragger. node)
+                  local-state (r/state this)]
               
               ;; Drag event handler
-              (.addEventListener
-               drag
+              (.addEventListener drag
                goog.fx.Dragger.EventType/DRAG
                (fn [b]
                  (let [dx (-> b .-dragger .-deltaX)
                        dy (-> b .-dragger .-deltaY)
-                       x (x-constraint
-                          (+ dx (:x @app-db)))
-                       y (y-constraint
-                          (+ dy (:y @app-db)))]
-                   (swap! app-db assoc :x x :y y))))
+                       x (x-constraint (+ dx @(:x local-state)))
+                       y (y-constraint (+ dy @(:y local-state)))]
+                   (circle-dragged [x y]))))
 
               ;; Drag end
               (.addEventListener drag goog.fx.Dragger.EventType/END #(.dispose drag))
 
               ;; Initialize
               (.startDrag drag e))))))}))
-
 
 (defn range-component [v min max title]
   [:div {:class "form-group"}
