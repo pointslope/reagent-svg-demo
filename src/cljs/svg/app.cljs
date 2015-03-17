@@ -3,6 +3,39 @@
 
 (defonce app-db (atom {:x 300 :y 100 :radius 10 :fill nil :clicks 0}))
 
+(defonce history (atom {:states []}))
+
+(defn from-history
+  [db h v]
+  (let [i (js/parseInt v)
+        state (get @h i)]
+    (when state
+      (reset! db state))))
+
+(defn history-component [db]
+  (let [h (r/cursor history [:states])
+        active (atom nil)]
+    (fn [db]
+      (when-not @active
+        (swap! h #(conj % @db)))
+      [:div {:class "form-group"}
+       [:label {:for "history"} "History"]
+       [:input {:type "range"
+                :class "form-control"
+                :name "history"
+                :min 0
+                :max (count @h)
+                :onChange (fn [e]
+                            (when (> (count @h) 0)
+                              (reset! active true)
+                              (->> e
+                                 (.-target)
+                                 (.-value)
+                                 (from-history db h)
+                                 )))
+                :onBlur (fn [e] (reset! active false))
+                }]])))
+
 (defn click-count-component
   [clicks]
   [:h2 "Clicks: " [:small @clicks]])
@@ -58,6 +91,7 @@
     (fn []
       [:div {:id "wrapper"}
        [:div {:id "controls" :class "col-md-3"}
+        [history-component app-db]
         [click-count-component clicks]
         [range-component x 300 700 "CX"]
         [range-component y 100 500 "CY"]
