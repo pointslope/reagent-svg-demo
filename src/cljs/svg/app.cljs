@@ -184,10 +184,9 @@
             :on-change (fn [e] (fire :dimension-changed [v (-> e .-target .-value)]))}]])
 
 (defn select-component
-  []
-  (fn []
-    (let [fill (r/cursor app-db [:fill])
-          colors ["gray" "red" "orange" "yellow" "green" "blue"
+  [fill]
+  (fn [fill]
+    (let [colors ["gray" "red" "orange" "yellow" "green" "blue"
                   "aqua" "indigo" "purple" "brown" "black"]]
       (do
         [:div {:class "form-group"}
@@ -223,7 +222,7 @@
         [range-component x 0 720 "CX"]
         [range-component y 0 720 "CY"]
         [range-component radius 1 100 "Size"]
-        [select-component]]
+        [select-component fill]]
        [:div {:class "col-md-9"}
         [svg-component circle]]])))
 
