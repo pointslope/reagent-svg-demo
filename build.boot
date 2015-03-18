@@ -45,3 +45,9 @@
   []
   (comp (development)
         (run)))
+
+(deftask prod
+  "Prod build"
+  []
+  (comp (production)
+        (build)))
