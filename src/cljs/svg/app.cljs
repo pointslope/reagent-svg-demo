@@ -32,13 +32,6 @@
   (let [handlers (vec (get @event-handlers key))]
     (swap! event-handlers assoc key (conj handlers func))))
 
-(defn- make-constraint
-  "Creates a function that keeps a supplied number within the set bounds"
-  [minimum maximum]
-  (fn [num]
-    (let [local-max (if (<= num maximum) num maximum)]
-      (if (<= minimum local-max) local-max minimum))))
-
 ;;; Event Handlers
 
 (listen :object-moved
@@ -143,9 +136,8 @@
      (fn [this]
        (let [node (r/dom-node this)
              canvas (-> node .-parentNode)
-             x-constraint (->> canvas .-clientWidth (make-constraint 0))
-             y-constraint (->> canvas .-clientHeight (make-constraint 0))]
-
+             x-constraint #(gmath/clamp % 0 (.-clientWidth canvas))
+             y-constraint #(gmath/clamp % 0 (.-clientHeight canvas))]
          ;; get my component-local
          (goog.events/listen
           node
