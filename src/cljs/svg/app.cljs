@@ -96,16 +96,8 @@
   (let [h (r/cursor db [:states])
         current (r/cursor db [:current])]
     (fn [db]
-      [:div {:class "wrapper"}
-       [:button {:class "btn btn-default"
-                 :onClick (fn [e]
-                            (play-history @h :reverse))}
-        [:span {:class "glyphicon glyphicon-fast-backward"}]]
-       [:button {:class "btn btn-default"
-                 :onClick (fn [e]
-                            (play-history @h :forward))}
-        [:span {:class "glyphicon glyphicon-fast-forward"}]]
-       [:div {:class "form-group"}
+      [:div {:class "wrapper row"}
+       [:div {:class "form-group col-md-12"}
         [:label {:for "history"} (str "History " @current)]
         [:input {:type "range"
                  :class "form-control"
@@ -115,7 +107,18 @@
                  :max (count @h)
                  :on-change (fn [e]
                               (fire :history-navigated
-                                    (->> e .-target .-value js/parseInt)))}]]])))
+                                    (->> e .-target .-value js/parseInt)))}]]
+       [:div {:class "col-md-6"}
+        [:button {:class "btn btn-default"
+                  :onClick (fn [e]
+                             (play-history @h :reverse))}
+         [:span {:class "glyphicon glyphicon-fast-backward"}]]]
+       [:div {:class "col-md-6 text-right"}
+        [:button {:class "btn btn-default"
+                  :onClick (fn [e]
+                             (play-history @h :forward))}
+         [:span {:class "glyphicon glyphicon-fast-forward"}]]]
+       ])))
 
 (defn click-count-component
   [clicks]
@@ -209,12 +212,12 @@
     (fn []
       [:div {:id "wrapper"}
        [:div {:id "controls" :class "col-md-3"}
-        [history-component history]
         [click-count-component clicks]
         [range-component x 0 720 "CX"]
         [range-component y 0 720 "CY"]
         [range-component radius 1 100 "Size"]
-        [select-component fill]]
+        [select-component fill]
+        [history-component history]]
        [:div {:class "col-md-9"}
         [svg-component circle]]])))
 
