@@ -2,6 +2,4 @@
 goog.provide('boot.cljs.app');
 goog.require('cljs.core');
 goog.require('svg.app');
-goog.require('adzerk.boot_reload');
-goog.require('adzerk.boot_cljs_repl');
 svg.app.init();
