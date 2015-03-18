@@ -9,6 +9,8 @@ A [Reagent][reagent] example that demonstrates the following concepts:
 * Light-weight Eventing for code organization.
 * [core.async](https://github.com/clojure/core.async) channels.
 
+[View](http://pointslope.github.io/reagent-svg-demo/) the demo!
+
 ## TODO
 
 * Add state serialization
