@@ -14,7 +14,7 @@
 ;; Data
 
 (defonce app-db (atom {:x 360 :y 360 :radius 50 :fill "black" :clicks 0}))
-(defonce history (atom {:states [] :count 0 :current 0}))
+(defonce history (atom {:states [] :current 0}))
 (defonce event-handlers (atom {}))
 
 ;;; Utilities
@@ -75,8 +75,8 @@
           (let [states (r/cursor history [:states])
                 current (r/cursor history [:current])]
             (when-let [chosen (get @states index)]
-              (reset! db chosen)
-              (reset! current index))
+              (reset! current index)
+              (reset! db chosen))
             true)))
 
 ;;; Components
@@ -94,7 +94,6 @@
                                 (= :reverse dir) (reverse)))]
      (go-loop []
        (when-let [index (<! indices-chan)]
-         (log (str  "Playing index " index))
          (fire :history-navigated index)
          (<! (timeout 30))
          (recur))))))
@@ -102,7 +101,6 @@
 (defn history-component
   [db]
   (let [h (r/cursor db [:states])
-        state-count (r/cursor db [:count])
         current (r/cursor db [:current])]
     (fn [db]
       [:div {:class "wrapper"}
@@ -121,7 +119,7 @@
                  :name "history"
                  :value @current
                  :min 0
-                 :max @state-count
+                 :max (count @h)
                  :on-change (fn [e]
                               (fire :history-navigated
                                     (->> e .-target .-value js/parseInt)))}]]])))
