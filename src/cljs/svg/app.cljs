@@ -1,5 +1,6 @@
 (ns svg.app
-  (:require-macros [reagent.debug :refer [log prn]])
+  (:require-macros [reagent.debug :refer [log prn]]
+                   [cljs.core.async.macros :as m :refer [go go-loop]])
   (:require [reagent.core :as r :refer [atom]]
             [goog.string :as gstring]
             [goog.string.format]
@@ -7,7 +8,8 @@
             [goog.fx.Dragger.EventType]
             [goog.events]
             [goog.events.EventType]
-            [goog.math :as gmath]))
+            [goog.math :as gmath]
+            [cljs.core.async :as async :refer [timeout to-chan <! >!]]))
 
 ;; Data
 
@@ -79,6 +81,24 @@
 
 ;;; Components
 
+(defn play-history
+  "Steps through history in an optionally specified dir.
+  Default id :forward"
+  ([history]
+   (play-history history :forward))
+  ([history dir]
+   (let [indices-chan (to-chan (cond->> history
+                                 true (count)
+                                 true (inc)
+                                 true (range 1)
+                                (= :reverse dir) (reverse)))]
+     (go-loop []
+       (when-let [index (<! indices-chan)]
+         (log (str  "Playing index " index))
+         (fire :history-navigated index)
+         (<! (timeout 30))
+         (recur))))))
+
 (defn history-component
   [db]
   (let [h (r/cursor db [:states])
@@ -86,6 +106,14 @@
         current (r/cursor db [:current])]
     (fn [db]
       [:div {:class "wrapper"}
+       [:button {:class "btn btn-default"
+                 :onClick (fn [e]
+                            (play-history @h :reverse))}
+        [:span {:class "glyphicon glyphicon-fast-backward"}]]
+       [:button {:class "btn btn-default"
+                 :onClick (fn [e]
+                            (play-history @h :forward))}
+        [:span {:class "glyphicon glyphicon-fast-forward"}]]
        [:div {:class "form-group"}
         [:label {:for "history"} (str "History " @current)]
         [:input {:type "range"
