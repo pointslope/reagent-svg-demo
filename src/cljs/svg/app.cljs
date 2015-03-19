@@ -4,6 +4,7 @@
   (:require [reagent.core :as r :refer [atom]]
             [pointslope.remit.events :as pse :refer [emit subscribe]]
             [pointslope.remit.middleware :as psm :refer [event-map-middleware]]
+            [svg.components.history :refer [history-component make-history-recorder]]
             [goog.string :as gstring]
             [goog.string.format]
             [goog.fx :as fx]
@@ -17,7 +18,7 @@
 
 (defonce app-db (atom {:x 360 :y 360 :radius 50 :fill "black" :clicks 0}))
 (defonce history (atom {:states [] :current 0}))
-(defonce event-handlers (atom {}))
+(defonce state-changed! (make-history-recorder history :states :current))
 
 ;;; Middleware Wrapper
 
@@ -34,91 +35,27 @@
            (wrap-db
             (fn [{db :db {x :x y :y} :data}]
               (swap! db assoc :x x :y y)
-              (emit :state-changed))))
+              (state-changed! db))))
 
 (subscribe :color-changed
            (wrap-db
             (fn [{db :db {color :color} :data}]
               (swap! db assoc :fill color)
-              (emit :state-changed))))
+              (state-changed! db))))
 
 (subscribe :point-earned
-           (fn [{:keys [data]}]
-             (swap! data inc)
-             (emit :state-changed)))
+           (wrap-db
+            (fn [{db :db {score :score} :data}]
+              (swap! score inc)
+              (state-changed! db))))
 
 (subscribe :dimension-changed
-           (fn [{{cursor :cursor value :value} :data}]
-             (reset! cursor value)
-             (emit :state-changed)))
-
-(subscribe :state-changed
            (wrap-db
-            (fn [{:keys [db]}]
-              (let [states  @(r/cursor history [:states])
-                    counter @(r/cursor history [:count])
-                    next-index (inc counter)]
-                (reset! history {:states (conj states @db)
-                                 :count next-index
-                                 :current next-index})))))
-
-(subscribe :history-navigated
-           (wrap-db
-            (fn [{:keys [db data]}]
-              (let [states (r/cursor history [:states])
-                    current (r/cursor history [:current])]
-                (when-let [chosen (get @states data)]
-                  (reset! current data)
-                  (reset! db chosen))
-                true))))
+            (fn [{db :db {:keys [cursor value]} :data}]
+              (reset! cursor value)
+              (state-changed! db))))
 
 ;;; Components
-
-(defn play-history
-  "Steps through history in an optionally specified dir.
-  Default id :forward"
-  ([history]
-   (play-history history :forward))
-  ([history dir]
-   (let [indices-chan (to-chan (cond->> history
-                                 true (count)
-                                 true (inc)
-                                 true (range 1)
-                                (= :reverse dir) (reverse)))]
-     (go-loop []
-       (when-let [index (<! indices-chan)]
-         (emit :history-navigated index)
-         (<! (timeout 20))
-         (recur))))))
-
-(defn history-component
-  [db]
-  (let [h (r/cursor db [:states])
-        current (r/cursor db [:current])]
-    (fn [db]
-      [:div {:class "wrapper row"}
-       [:div {:class "form-group col-md-12"}
-        [:label {:for "history"} (str "History States [" @current "]")]
-        [:input {:type "range"
-                 :class "form-control"
-                 :name "history"
-                 :value @current
-                 :min 0
-                 :max (count @h)
-                 :on-change (fn [e]
-                              (emit :history-navigated
-                                    (->> e .-target .-value js/parseInt)))}]]
-       [:div {:class "col-md-6"}
-        [:button {:class "btn btn-default"
-                  :onClick (fn [e]
-                             (play-history @h :reverse))}
-         [:span {:class "glyphicon glyphicon-fast-backward"}]]]
-       [:div {:class "col-md-6 text-right"}
-        [:button {:class "btn btn-default"
-                  :onClick (fn [e]
-                             (play-history @h :forward))}
-         [:span {:class "glyphicon glyphicon-fast-forward"}]]]
-       ])))
 
 (defn click-count-component
   [clicks]
@@ -131,7 +68,9 @@
     (fn [cx cy r fill score]
       [:circle {:cx @cx :cy @cy
                 :r @r :style {:fill @fill}
-                :on-click (fn [e] (emit :point-earned score))}])))
+                :on-click (fn [e] (emit :point-earned
+                                       {:score score
+                                        :event e}))}])))
 
 (def draggable-circle-component
   (with-meta circle-component
@@ -219,7 +158,7 @@
         [range-component y 0 720 "CY"]
         [range-component radius 1 100 "Size"]
         [select-component fill]
-        [history-component history]]
+        [history-component app-db history :states :current]]
        [:div {:class "col-md-9"}
         [svg-component circle]]])))
 
