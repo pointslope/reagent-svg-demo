@@ -153,8 +153,8 @@
               (.addEventListener drag
                goog.fx.Dragger.EventType/DRAG
                (fn [b]
-                 (let [dx (-> b .-dragger .-deltaX)
-                       dy (-> b .-dragger .-deltaY)
+                 (let [dx (-> b .-dragger .-deltaX (/ 20) (Math/round))
+                       dy (-> b .-dragger .-deltaY (/ 20) (Math/round))
                        x (x-constraint (+ dx @(:x local-state)))
                        y (y-constraint (+ dy @(:y local-state)))]
                    (emit :object-moved {:x x :y y}))))
