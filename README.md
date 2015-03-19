@@ -28,9 +28,11 @@ In a browser, navigate to [localhost:3000](http://localhost:3000).
 
 - [This][CircleCi] post references state serialization.
 - [Reactjs][Reactjs] Overview.
+- [Reframe][Reframe] Presents 'a pattern for building SPAs in ClojureScript, using Reagent.'
+- [Remit][Remit] An experimental ClojureScript event-handling library using core.async.
 - [Precursor][Precursorapp] explains how Clojure is used as a design tool.
-- [Om][Om] is an alternative Clojurescript React interface.
-- [Hoplon][Hoplon] is a Clojurescript SPA framework that leverages [Javelin][Javelin] cells for state change propagation.
+- [Om][Om] is an alternative ClojureScript React interface.
+- [Hoplon][Hoplon] is a ClojureScript SPA framework that leverages [Javelin][Javelin] cells for state change propagation.
 
 ## License
 
@@ -46,3 +48,5 @@ your option) any later version.
 [Om]: https://github.com/omcljs/om
 [Hoplon]: http://hoplon.io/
 [Javelin]: https://github.com/tailrecursion/javelin
+[Reframe]: https://github.com/Day8/re-frame
+[Remit]: https://github.com/pointslope/remit
