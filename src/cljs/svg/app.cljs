@@ -2,6 +2,8 @@
   (:require-macros [reagent.debug :refer [log prn]]
                    [cljs.core.async.macros :as m :refer [go go-loop]])
   (:require [reagent.core :as r :refer [atom]]
+            [pointslope.remit.events :as pse :refer [emit subscribe]]
+            [pointslope.remit.middleware :as psm :refer [event-map-middleware]]
             [goog.string :as gstring]
             [goog.string.format]
             [goog.fx :as fx]
@@ -11,66 +13,64 @@
             [goog.math :as gmath]
             [cljs.core.async :as async :refer [timeout to-chan <! >!]]))
 
-;; Data
+;;; Data
 
 (defonce app-db (atom {:x 360 :y 360 :radius 50 :fill "black" :clicks 0}))
 (defonce history (atom {:states [] :current 0}))
 (defonce event-handlers (atom {}))
 
-;;; Utilities
+;;; Middleware Wrapper
 
-(defn fire
-  "Call all handlers for an event passing in the app-db"
-  [key data]
-  (doseq [handler (key @event-handlers)]
-    (handler app-db data))
-  {:event key :data data})
-
-(defn listen
-  "Register a function to listen for an event"
-  [key func]
-  (let [handlers (vec (get @event-handlers key))]
-    (swap! event-handlers assoc key (conj handlers func))))
+(defn wrap-db
+  "Wraps handlers in middleware that adds the app-db 
+  to the event map under the :db key"
+  [handler]
+  (-> handler
+     (event-map-middleware :db app-db)))
 
 ;;; Event Handlers
 
-(listen :object-moved
-        (fn [db [newX newY]]
-          (swap! db assoc :x newX :y newY)
-          (fire :state-changed @db)))
+(subscribe :object-moved
+           (wrap-db
+            (fn [{db :db {x :x y :y} :data}]
+              (swap! db assoc :x x :y y)
+              (emit :state-changed))))
 
-(listen :color-changed
-        (fn [db color]
-          (swap! db assoc :fill color)
-          (fire :state-changed @db)))
+(subscribe :color-changed
+           (wrap-db
+            (fn [{db :db {color :color} :data}]
+              (swap! db assoc :fill color)
+              (emit :state-changed))))
 
-(listen :point-earned
-        (fn [db cursor]
-          (swap! cursor inc)
-          (fire :state-changed @db)))
+(subscribe :point-earned
+           (fn [{:keys [data]}]
+             (swap! data inc)
+             (emit :state-changed)))
 
-(listen :dimension-changed
-        (fn [db [cursor value]]
-          (reset! cursor value)
-          (fire :state-changed @db)))
+(subscribe :dimension-changed
+           (fn [{{cursor :cursor value :value} :data}]
+             (reset! cursor value)
+             (emit :state-changed)))
 
-(listen :state-changed
-        (fn [db new-state]
-          (let [states  @(r/cursor history [:states])
-                counter @(r/cursor history [:count])
-                next-index (inc counter)]
-            (reset! history {:states (conj states new-state)
-                             :count next-index
-                             :current next-index}))))
+(subscribe :state-changed
+           (wrap-db
+            (fn [{:keys [db]}]
+              (let [states  @(r/cursor history [:states])
+                    counter @(r/cursor history [:count])
+                    next-index (inc counter)]
+                (reset! history {:states (conj states @db)
+                                 :count next-index
+                                 :current next-index})))))
 
-(listen :history-navigated
-        (fn [db index]
-          (let [states (r/cursor history [:states])
-                current (r/cursor history [:current])]
-            (when-let [chosen (get @states index)]
-              (reset! current index)
-              (reset! db chosen))
-            true)))
+(subscribe :history-navigated
+           (wrap-db
+            (fn [{:keys [db data]}]
+              (let [states (r/cursor history [:states])
+                    current (r/cursor history [:current])]
+                (when-let [chosen (get @states data)]
+                  (reset! current data)
+                  (reset! db chosen))
+                true))))
 
 ;;; Components
 
@@ -87,8 +87,8 @@
                                 (= :reverse dir) (reverse)))]
      (go-loop []
        (when-let [index (<! indices-chan)]
-         (fire :history-navigated index)
-         (<! (timeout 30))
+         (emit :history-navigated index)
+         (<! (timeout 20))
          (recur))))))
 
 (defn history-component
@@ -98,7 +98,7 @@
     (fn [db]
       [:div {:class "wrapper row"}
        [:div {:class "form-group col-md-12"}
-        [:label {:for "history"} (str "History " @current)]
+        [:label {:for "history"} (str "History States [" @current "]")]
         [:input {:type "range"
                  :class "form-control"
                  :name "history"
@@ -106,7 +106,7 @@
                  :min 0
                  :max (count @h)
                  :on-change (fn [e]
-                              (fire :history-navigated
+                              (emit :history-navigated
                                     (->> e .-target .-value js/parseInt)))}]]
        [:div {:class "col-md-6"}
         [:button {:class "btn btn-default"
@@ -131,7 +131,7 @@
     (fn [cx cy r fill score]
       [:circle {:cx @cx :cy @cy
                 :r @r :style {:fill @fill}
-                :on-click (fn [e] (fire :point-earned score))}])))
+                :on-click (fn [e] (emit :point-earned score))}])))
 
 (def draggable-circle-component
   (with-meta circle-component
@@ -157,7 +157,7 @@
                        dy (-> b .-dragger .-deltaY)
                        x (x-constraint (+ dx @(:x local-state)))
                        y (y-constraint (+ dy @(:y local-state)))]
-                   (fire :object-moved [x y]))))
+                   (emit :object-moved {:x x :y y}))))
 
               ;; Drag end
               (.addEventListener drag goog.fx.Dragger.EventType/END #(.dispose drag))
@@ -176,7 +176,8 @@
             :min min
             :max max
             :value @v
-            :on-change (fn [e] (fire :dimension-changed [v (-> e .-target .-value)]))}]])
+            :on-change (fn [e] (emit :dimension-changed
+                                    {:cursor v :value (-> e .-target .-value)}))}]])
 
 (defn select-component
   [fill]
@@ -189,7 +190,8 @@
          [:select {:name "Color"
                    :class "form-control"
                    :value @fill
-                   :on-change (fn [e] (fire :color-changed (->> e .-target .-value)))}
+                   :on-change (fn [e] (emit :color-changed
+                                           {:color (->> e .-target .-value)}))}
           (for [c colors]
             [:option {:value c :key c} c])]]))))
 

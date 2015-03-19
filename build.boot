@@ -6,6 +6,7 @@
                  [adzerk/boot-reload    "0.2.4"      :scope "test"]
                  [pandeiro/boot-http    "0.6.1"      :scope "test"]
                  [org.clojure/core.async "0.1.346.0-17112a-alpha"]
+                 [pointslope/remit "0.1.0-SNAPSHOT"]
                  [reagent "0.5.0"]])
 
 (require
