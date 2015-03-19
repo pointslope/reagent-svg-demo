@@ -16,7 +16,7 @@
 
 ;;; Data
 
-(defonce app-db (atom {:x 360 :y 360 :radius 50 :fill "black" :clicks 0}))
+(defonce app-db (atom {:x 360 :y 200 :radius 50 :fill "black" :clicks 0}))
 (defonce history (atom {:states [] :current 0}))
 (defonce state-changed! (make-history-recorder history :states :current))
 
@@ -137,9 +137,10 @@
 (defn svg-component
   [circle]
   [:svg {:width "720"
-         :height "720"
+         :height "400"
          :id "canvas"
-         :style {:outline "1px solid black"}}
+         :style {:outline "2px solid black"
+                 :background-color "#fff"}}
    circle])
 
 (defn app-component
@@ -155,7 +156,7 @@
        [:div {:id "controls" :class "col-md-3"}
         [click-count-component clicks]
         [range-component x 0 720 "CX"]
-        [range-component y 0 720 "CY"]
+        [range-component y 0 400 "CY"]
         [range-component radius 1 100 "Size"]
         [select-component fill]
         [history-component app-db history :states :current]]
